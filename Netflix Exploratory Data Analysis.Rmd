@@ -1,0 +1,265 @@
+---
+title: "DS5110 Miniposter"
+author: "Joann Rachel Jacob"
+date: "10/12/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+## PART A
+
+***Importing libraries***
+
+```{r}
+library(ggplot2)
+library(readr)
+library(tidyr)
+library(dplyr)
+library(lubridate)
+library(stringr)
+```
+
+## Problem 1
+
+***Importing Netflix movies and TV shows dataset***
+
+```{r}
+netflix_data <- read_csv("/Users/joannracheljacob/Downloads/netflix_titles.csv", 
+                         na = c("", "NA"))
+head(netflix_data)
+```
+
+```{r}
+# Printing number of missing values for each column
+data.frame("Column_name"=c(colnames(netflix_data)), 
+           "Missing_value_count"=sapply(netflix_data, function(x) sum(is.na(x))), 
+           row.names=NULL)
+```
+  
+  
+***Tidying dataset***
+
+```{r}
+# Change the type of Rating, listed_in and type columns
+netflix_data$rating <- as.factor(netflix_data$rating)
+netflix_data$listed_in <- as.factor(netflix_data$listed_in)
+netflix_data$type <- as.factor(netflix_data$type)
+
+# Change Date format
+netflix_data$date_added <- as.Date(netflix_data$date_added, format = "%B %d, %Y")
+```
+
+```{r}
+# Function to calculate mode
+calculate_mode <- function(data) {
+  values <- unique(data[!is.na(data)])
+  values[which.max(tabulate(match(data, values)))]
+}
+
+# To replace blank countries and ratings with the most common value
+netflix_data$country[is.na(netflix_data$country)] <- calculate_mode(netflix_data$country)
+netflix_data$rating[is.na(netflix_data$rating)] <- calculate_mode(netflix_data$rating)
+
+# To drop duplicate rows
+netflix_data = distinct(netflix_data, title, country, type, release_year, .keep_all = TRUE)
+```
+
+***Description of dataset and variables***  
+
+I have chosen Netflix Movies and TV shows datset from Kaggle which contains details of all movies and TV shows available on Netflix till 2021. This includes 8807 records and 12 columns including the following 12 features:
+
+- show id - unique id given for each row  
+- type - whether it is a Movie or a TV show  
+- title - Title of the Movie of TV show  
+- director - Director of the movie or show  
+- cast - comma separated values of actors and actresses in the movie or show  
+- country - Country that produced the movie  
+- date added - Date when it was added on Netflix  
+- release year - Actual release year of the movie or show  
+- rating - Rating like PG-13, R, TV-MA etc.  
+- duration - Duration of the movie in minutes or TV show in Seasons  
+- listed in - Genre of the movie or TV show  
+- description - plot summary of the movie or show  
+
+I had to tidy the dataset since there were many missing values for few columns. Director had the most number of missing values followed by cast, country, date_added, rating and duration.
+
+Following are steps I performed for tidying the dataset:  
+
+- Changed the type of Rating, listed_in and type columns since they are categorical.    
+- Changed the date format (From September 7, 2021 to 2021-09-25)  
+- Replaced blank countries and ratings with the most common value in the column using 
+mode function.   
+- Dropped all duplicate rows.  
+
+## Problem 2
+
+```{r}
+# Creating dataframes filtered based on type
+movie_data = filter(netflix_data, type=="Movie")
+
+tv_show_data = filter(netflix_data, type=="TV Show")
+```
+
+## Percentage of Movies and TV Shows on Netflix
+
+```{r}
+type_percent <- netflix_data %>%
+  group_by(type) %>% 
+  count() %>%
+  ungroup %>%
+  mutate(perc = `n` / sum(`n`)) %>% 
+  arrange(perc) %>%
+  mutate(labels = scales::percent(perc))
+
+ggplot(type_percent, aes(x = "", y = perc, fill = type)) +
+  geom_col() +
+  geom_text(aes(label = labels,), position = position_stack(vjust = 0.5), color = "white") +
+  scale_fill_manual(values = c("red", "black")) +
+  guides(fill = guide_legend(title = "Type")) +
+  coord_polar(theta = "y") +
+  theme(axis.text.x = element_blank()) +
+  theme_void() +
+  labs(title = "Proportion of Movies and TV Shows on Netflix")
+```
+
+***Interpretation***
+
+- Movies constitute 70% of the content on Netflix and TV Shows are only 30% of the entire content.It is clearly evident that the amount of movies on Netflix is greater than that of TV shows.
+
+## Trend of Movies and TV Shows added on Netflix per year
+
+```{r}
+yearly_count <- netflix_data %>%
+  group_by(year = floor_date(date_added, "year"), type) %>%
+  filter(date_added < "2021-10-07") %>%
+  count()
+  
+ggplot(yearly_count, aes(x = year, y = n, group = type, color = type)) + 
+  geom_line()+
+  geom_point() +
+  labs(x = "Year", 
+       y = "Count", 
+       title="Trend of Movies and TV Shows added on Netflix over the years") + 
+  scale_x_date(date_breaks = '1 year', date_labels = "%Y") +
+  scale_y_continuous(breaks = seq(0, max(yearly_count$n), 100)) +
+  guides(color = guide_legend(title = "Type")) +
+  theme_minimal()
+```
+
+***Interpretation***
+
+- From the graph showing the content added over the years it can be found that both Movies and TV shows kept increasing till around 2019-'20 and suddenly dipped ( might be due to COVID related difficulties). And, the number of TV shows available have increased a lot over the years. It can also be seen that there was not much content on Netflix till 2013 which shows that it started becoming known probably by 2014 and got very popular after then.
+
+## Count of ratings on Netflix
+
+```{r }
+top_ratings <-  filter(netflix_data, !rating %in% c("84 min", "74 min", "66 min")) %>%
+    count(rating, type) %>% 
+    arrange(desc(n))
+
+ggplot(top_ratings, aes(x=reorder(rating, n), y=n, fill=type)) +
+  geom_col() +
+  facet_wrap(~type) +
+  labs(title="Analysis of Ratings on Netflix",
+       x="Ratings",
+       y="Count") +
+  guides(fill = guide_legend(title = "Type")) +
+  scale_fill_manual(values=c("black", "red"))+
+  theme_minimal() +
+  coord_flip() 
+```
+
+***Interpretation***
+
+- From the analysis of ratings it can be seen that there are no TV shows in PG and PG-13 category and very few in R rated. So, children would be able to watch most TV shows without parental guidance while that is not the case for movies.  A lot of movies belong to TV-MA (Mature Audiences), TV-14 (can be watched by 14 years or above) and R rating, all of which require parental guidance.
+
+## Top 10 countries producing movies and shows on Netflix
+
+```{r}
+top_10_countries <- netflix_data %>%
+    count(country) %>% 
+    arrange(desc(n)) %>%
+    top_n(10) 
+
+ggplot(top_10_countries, aes(x=reorder(country, n), y=n, fill=country)) +
+  geom_col() +
+  labs(title="Top 10 countries producing movies and TV shows on Netflix",
+       x="Country",
+       y="Count") +
+  theme_minimal() +
+  guides(fill = guide_legend(title = "Country")) +
+  coord_flip() +
+  scale_y_continuous(breaks=seq(0, max(top_10_countries$n), 500))+
+  scale_fill_brewer(palette = "RdGy")
+```
+
+***Interpretation***
+
+- United States has the most content on Netflix, followed by India and UK.
+
+
+## Top 10 genres on Netflix
+
+```{r}
+# Separate the comma listed values into individual genres
+genres <- strsplit(as.character(netflix_data$listed_in), split = ", ")
+genres_df <- data.frame(type = rep(netflix_data$type, sapply(genres, length)), 
+                               listed_in = unlist(genres))
+genres_df$listed_in <- as.character(gsub(",","",genres_df$listed_in))
+
+genre_data <- genres_df %>% 
+  group_by(listed_in) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(count)) %>% 
+  top_n(10)
+
+ggplot(genre_data, aes(x=reorder(listed_in, -count), y=count, fill=listed_in)) +
+  geom_col() +
+  labs(title="Top 10 genres on Netflix",
+       x="Genres",
+       y="Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), 
+        legend.text=element_text(size=5),
+        legend.key.size = unit(0.5, 'cm')) +
+  scale_y_continuous(breaks=seq(0, max(genre_data$count), 500)) +
+  guides(fill = guide_legend(title = "Genre")) +
+  scale_fill_brewer(palette = "RdGy")
+
+```
+
+***Interpretation***
+
+- UK and International movies, Dramas and Comedies are the top three genres on Netflix by count. Romantic movies is very less compared to others.
+
+## Movie Duration of 10 countries producing most content on Netflix
+
+```{r}
+country_movie_duration <- na.omit(movie_data[,c("country", "duration")])
+time <- strsplit(country_movie_duration$country, split = ", ")
+full_duration_df <- data.frame(duration = rep(country_movie_duration$duration,
+                                           sapply(time, length)),
+                            country = unlist(time))
+full_duration_df$duration <- as.numeric(gsub(" min","", full_duration_df$duration))
+sub_duration_df <- full_duration_df[full_duration_df$country %in% 
+                                        c("United States", "India", "United Kingdom", 
+                                          "Japan", "South Korea", "Canada", "Spain", 
+                                          "France", "Mexico", "Egypt"),]
+
+ggplot(data=sub_duration_df, aes(x=country, y = duration, color = country)) + 
+  geom_boxplot() +        
+  labs(x = "Country",
+       y = "Duration (Minutes)",
+       title = "Movie Duration of 10 countries producing most content on Netflix") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  scale_color_brewer(palette = "RdYlBu") +
+  guides(color = guide_legend(title = "Country"))
+```
+
+***Interpretation***
+
+- From the analysis of movie duration of various countries, it is noticed that most of them are in between 70 to 110 minutes with India having the highest duration up till 140 minutes which might be difficult for a lot of people to watch in one go.
+
+---
